@@ -6,14 +6,14 @@
 .DESCRIPTION
     This Script collects the DNS debug logfile and writes all DNS queries to a daily log file
 
-    !! Need to run on DNS Server as Scheduled Task
-    (can be run daily or more often if log file grows to large)
+    !! Need to run on DNS Server
+    (can be run daily or more often if log file grows too quick or large)
 
     - Stops the DNS Server Service
     - Moves Logfile
     - Starts DNS
     - removes unnecessary empty lines from Logfile
-    - cleanup
+    - housekeeping
 
 .NOTES
     Version  : 1.0
@@ -26,8 +26,8 @@ $ErrorActionPreference = "SilentlyContinue"
 $Now = Get-Date
 
 # this is the source file of the DNS DEBUG log
-$DebugLogfile = "C:\Windows\Temp\DNS\dns.log"
-$TargetFolder = "C:\DNS-LogRotate\" # needs trailing slash!
+$DebugLogfile = "C:\Windows\System32\dns\dns.log"
+$TargetFolder = $PSScriptRoot
 
 # Number of Days the log files will be kept
 $Keep_Days = 14
@@ -42,7 +42,6 @@ Move-Item -Path $DebugLogfile -Destination $TargetFolder -Force
 # 3. Start DNS Server
 Start-Service DNS
 
-
 # 4. remove unnecessary lines from log
 $LogFile = Join-Path `
     -Path $TargetFolder `
@@ -52,17 +51,15 @@ $TargetFile = Join-Path `
     -Path $TargetFolder `
     -ChildPath ("DNS_{0:yyyy-MM-dd}.log" -f (Get-Date))
 
-
 # .NET StreamReader + StreamWriter for efficient logfile traversal and output!
-$source = New-Object IO.StreamReader($LogFile)
-$output = New-Object IO.StreamWriter($TargetFile, $true)
-
+$source = [System.IO.StreamReader]::new($LogFile)
+$output = [System.IO.StreamWriter]::new($TargetFile, $true)
 while ($source.Peek() -gt 0) {
-    $line = $input.ReadLine()
-
+    $line = $source.ReadLine();
     # resolve proper URIs
     $line = $line -replace '\([0-9]{1,2}\)', '.'
 
+    # skip header + empty lines
     if ($line.Length -lt 112) {
         continue;
     }
@@ -82,9 +79,9 @@ $output.Close();
 # 5. Cleanup
 Remove-Item -Path $LogFile
 
-Get-ChildItem -Path $Target -Filter "*.log" | ForEach-Object {
+Get-ChildItem -Path $TargetFolder -Filter "*.log" | ForEach-Object {
     if ($_.LastWriteTime.AddDays($Keep_Days) -lt $Now) {
-        Write-Host "Delete File:" $_.BaseName
+        Remove-Item $_
     }
 }
 
