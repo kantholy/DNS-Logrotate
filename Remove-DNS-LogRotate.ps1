@@ -1,3 +1,7 @@
+# disabling DNS debugging
+dnscmd.exe /Config /LogLevel 0
+
+# removing Scheduled Task
 $TaskName = "DNS-LogRotate"
 
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue

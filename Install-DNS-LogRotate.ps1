@@ -1,3 +1,9 @@
+# enable DNS debugging
+dnscmd.exe /Config /LogFilePath "C:\Windows\System32\dns\dns.log"
+dnscmd.exe /Config /LogFileMaxSize 500000000
+dnscmd.exe /Config /LogLevel 33579265
+
+# setting up Scheduled Task
 $TaskName = "DNS-LogRotate"
 
 $TaskAction = New-ScheduledTaskAction `
