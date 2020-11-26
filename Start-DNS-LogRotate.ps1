@@ -22,76 +22,70 @@
     Modified : 2020-11-26
 #>
 
-
 $ErrorActionPreference = "SilentlyContinue"
-
-$DebugLogfile = "C:\Windows\Temp\DNS\dns.log"
-
-$TargetFolder = "C:\DNS-LogRotate\" # needs trailing slash!
-
-
-$Keep_Days = 14
-
 $Now = Get-Date
 
+# this is the source file of the DNS DEBUG log
+$DebugLogfile = "C:\Windows\Temp\DNS\dns.log"
+$TargetFolder = "C:\DNS-LogRotate\" # needs trailing slash!
 
+# Number of Days the log files will be kept
+$Keep_Days = 14
+
+#------------------------------------------------------------------------------
 # 1. Stop DNS Server
 Stop-Service DNS
 
 # 2. Move Logfile
-
 Move-Item -Path $DebugLogfile -Destination $TargetFolder -Force
 
 # 3. Start DNS Server
-
 Start-Service DNS
 
 
 # 4. remove unnecessary lines from log
+$LogFile = Join-Path `
+    -Path $TargetFolder `
+    -ChildPath (Split-Path -Path $DebugLogfile -Leaf)
 
-$LogFile = Join-Path -Path $TargetFolder -ChildPath (Split-Path -Path $DebugLogfile -Leaf)
-
-$TargetFile = Join-Path -Path $TargetFolder -ChildPath ("DNS_{0:yyyy-MM-dd}.log" -f (Get-Date))
+$TargetFile = Join-Path `
+    -Path $TargetFolder `
+    -ChildPath ("DNS_{0:yyyy-MM-dd}.log" -f (Get-Date))
 
 
 # .NET StreamReader + StreamWriter for efficient logfile traversal and output!
-$input = New-Object IO.StreamReader($LogFile)
+$source = New-Object IO.StreamReader($LogFile)
 $output = New-Object IO.StreamWriter($TargetFile, $true)
 
-while($input.Peek() -gt 0) {
+while ($source.Peek() -gt 0) {
     $line = $input.ReadLine()
 
     # resolve proper URIs
     $line = $line -replace '\([0-9]{1,2}\)', '.'
 
-    if($line.Length -lt 112) {
+    if ($line.Length -lt 112) {
         continue;
     }
 
     $timestamp = $line.Substring(0, 20)
     $ip = $line.Substring(58, 15)
-    $query = $line.Substring(104,6)
+    $query = $line.Substring(104, 6)
     $target = $line.Substring(112)
     $target = $target.Substring(0, $target.Length - 1)
 
-
     $output.WriteLine($timestamp + "`t" + $ip + "`t" + $query + "`t" + $target)
-
 }
 
-$input.Close();
+$source.Close();
 $output.Close();
 
 # 5. Cleanup
-
 Remove-Item -Path $LogFile
 
 Get-ChildItem -Path $Target -Filter "*.log" | ForEach-Object {
-
-
-    if($_.LastWriteTime.AddDays(0) -lt $Now) {
-        
+    if ($_.LastWriteTime.AddDays($Keep_Days) -lt $Now) {
         Write-Host "Delete File:" $_.BaseName
     }
-
 }
+
+exit 0
